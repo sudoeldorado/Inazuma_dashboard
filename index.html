@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Project Inazuma — Multi-Channel Telemetry</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8 font-sans">
+
+  <!-- Header -->
+  <div class="max-w-6xl mx-auto flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-yellow-400 flex items-center gap-2">⚡ Project Inazuma</h1>
+      <p class="text-xs text-slate-400">Live Multi-Channel Performance & Trade Telemetry</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="inline-block w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+      <span class="text-xs font-mono text-emerald-400 font-semibold">DB REALTIME SYNC</span>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="max-w-6xl mx-auto">
+    <!-- Channel Filter Tabs -->
+    <div id="channel-tabs" class="flex gap-2 overflow-x-auto pb-4 mb-4">
+      <button onclick="filterChannel('ALL')" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-yellow-500 text-slate-950">ALL CHANNELS</button>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 uppercase font-semibold">Total Signals</div>
+        <div id="metric-total" class="text-2xl font-black mt-1">0</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 uppercase font-semibold">Pending Limit</div>
+        <div id="metric-pending" class="text-2xl font-black text-yellow-400 mt-1">0</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 uppercase font-semibold">Executed</div>
+        <div id="metric-executed" class="text-2xl font-black text-emerald-400 mt-1">0</div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 uppercase font-semibold">Active Channels</div>
+        <div id="metric-channels" class="text-2xl font-black text-sky-400 mt-1">0</div>
+      </div>
+    </div>
+
+    <!-- Trade History Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+      <div class="px-5 py-4 border-b border-slate-800">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300">Live Trade Stream</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
+            <tr>
+              <th class="p-3">Time</th>
+              <th class="p-3">Source Channel</th>
+              <th class="p-3">Symbol</th>
+              <th class="p-3">Side</th>
+              <th class="p-3">Limit Entry</th>
+              <th class="p-3">TP1</th>
+              <th class="p-3">SL</th>
+              <th class="p-3">Status</th>
+            </tr>
+          </thead>
+          <tbody id="trade-table-body" class="divide-y divide-slate-800 text-slate-200">
+            <tr>
+              <td colspan="8" class="p-6 text-center text-slate-500">Connecting to Supabase...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://ktnutrhbhwsrojunujnw.supabase.co";
+    // Replace with your anon/public key from Supabase Project Settings > API
+    const SUPABASE_ANON_KEY = "your_supabase_anon_key_here";
+
+    const { createClient } = supabase;
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let allSignals = [];
+    let activeFilter = 'ALL';
+
+    async function loadData() {
+      const { data, error } = await client
+        .from('signals')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) {
+        console.error("DB Load Error:", error);
+        return;
+      }
+
+      allSignals = data || [];
+      renderUI();
+    }
+
+    function renderUI() {
+      const channels = [...new Set(allSignals.map(s => s.channel_name || 'Ghost Crypto'))];
+      
+      const tabContainer = document.getElementById('channel-tabs');
+      tabContainer.innerHTML = `
+        <button onclick="filterChannel('ALL')" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold ${activeFilter === 'ALL' ? 'bg-yellow-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">ALL CHANNELS</button>
+      `;
+      channels.forEach(ch => {
+        const active = activeFilter === ch;
+        tabContainer.innerHTML += `
+          <button onclick="filterChannel('${ch}')" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${active ? 'bg-yellow-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">${ch}</button>
+        `;
+      });
+
+      const filtered = activeFilter === 'ALL' ? allSignals : allSignals.filter(s => (s.channel_name || 'Ghost Crypto') === activeFilter);
+
+      document.getElementById('metric-total').innerText = filtered.length;
+      document.getElementById('metric-pending').innerText = filtered.filter(s => s.status === 'PENDING').length;
+      document.getElementById('metric-executed').innerText = filtered.filter(s => s.status !== 'PENDING' && s.status !== 'SKIPPED').length;
+      document.getElementById('metric-channels').innerText = channels.length;
+
+      const tbody = document.getElementById('trade-table-body');
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">No signals recorded.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(row => {
+        const sideColor = row.direction === 'BUY' ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-800/50' : 'text-rose-400 bg-rose-950/50 border border-rose-800/50';
+        const time = new Date(row.received_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const tp = Array.isArray(row.tp_targets) && row.tp_targets.length > 0 ? row.tp_targets[0] : (row.tp_targets || '-');
+        
+        return `
+          <tr class="hover:bg-slate-800/50 transition">
+            <td class="p-3 text-slate-400 font-mono">${time}</td>
+            <td class="p-3 font-semibold text-slate-200">${row.channel_name || 'Ghost Crypto'}</td>
+            <td class="p-3 font-bold text-yellow-300 font-mono">${row.symbol}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${sideColor}">${row.direction}</span></td>
+            <td class="p-3 font-mono">${row.entry_min || '-'}</td>
+            <td class="p-3 font-mono text-emerald-400">${tp}</td>
+            <td class="p-3 font-mono text-rose-400">${row.sl_target || '-'}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300">${row.status || 'PENDING'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterChannel(name) {
+      activeFilter = name;
+      renderUI();
+    }
+
+    loadData();
+    client
+      .channel('signals-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'signals' }, () => {
+        loadData();
+      })
+      .subscribe();
+  </script>
+</body>
+</html>
+
