@@ -2,9 +2,9 @@
   "name": "inazuma-dashboard",
   "version": "1.0.0",
   "description": "Live Multi-Channel Performance & Trade Telemetry Dashboard",
-  "main": "frontend/index.html",
+  "main": "index.html",
   "scripts": {
-    "start": "npx serve frontend -p 3000"
+    "start": "npx serve . -p 3000"
   },
   "devDependencies": {
     "serve": "^14.2.4"
