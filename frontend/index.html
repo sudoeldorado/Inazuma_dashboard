@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Project Inazuma — Multi-Channel Telemetry</title>
+  
+  <!-- Tailwind CSS & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Supabase Client JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="text-slate-100 min-h-screen p-4 md:p-8 selection:bg-yellow-400 selection:text-black">
+
+  <!-- Ambient Glow -->
+  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[700px] h-[250px] bg-yellow-500/5 blur-[140px] pointer-events-none rounded-full"></div>
+
+  <!-- Header -->
+  <header class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-5 mb-8 gap-4">
+    <div class="space-y-0.5">
+      <div class="flex items-center gap-2.5">
+        <span class="text-xl">⚡</span>
+        <h1 class="text-xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-500">
+          Project Inazuma
+        </h1>
+      </div>
+      <p class="text-xs text-neutral-400 font-medium">Live Multi-Channel Performance & Trade Telemetry</p>
+    </div>
+    
+    <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/30 border border-emerald-500/20">
+      <span class="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span>
+      <span class="text-[11px] font-mono text-emerald-400 font-semibold tracking-wider uppercase">DB Realtime Sync</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Channel Filter & Telemetry Banner -->
+    <div class="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+      
+      <!-- Dropdown Menu -->
+      <div class="relative w-full md:w-80">
+        <label class="block text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">Channel Filter</label>
+        <button 
+          id="dropdown-btn" 
+          onclick="toggleDropdown()" 
+          class="w-full glass-card hover:border-yellow-400/40 text-left px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition-all duration-200 shadow-lg">
+          <span id="selected-channel-label" class="flex items-center gap-2 text-slate-100">
+            <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+            ALL CHANNELS
+          </span>
+          <svg class="w-4 h-4 text-neutral-400 transition-transform duration-200" id="dropdown-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        <div 
+          id="channel-dropdown-menu" 
+          class="hidden absolute top-full left-0 mt-2 w-full glass-dropdown rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto divide-y divide-white/5">
+        </div>
+      </div>
+
+      <!-- Quick Metrics Preview -->
+      <div class="flex-1 glass-card rounded-xl p-3 px-5 flex items-center justify-between border border-white/5 shadow-lg">
+        <div class="flex items-center gap-3">
+          <div class="p-2 rounded-lg bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-sm">📊</div>
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase font-semibold">Active Filter Scope</div>
+            <div id="active-channel-scope" class="text-sm font-bold text-slate-100">ALL CHANNELS</div>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-6">
+          <div class="text-right">
+            <div class="text-[10px] text-neutral-400 uppercase font-semibold">Trades Opened</div>
+            <div id="channel-trades-count" class="text-sm font-mono font-bold text-slate-200">0</div>
+          </div>
+          <div class="h-8 w-px bg-white/10"></div>
+          <div class="text-right">
+            <div class="text-[10px] text-neutral-400 uppercase font-semibold">Total Channel PnL</div>
+            <div id="channel-pnl-val" class="text-sm font-mono font-bold text-emerald-400">$0.00 <span class="text-[10px] font-normal text-neutral-400">(0.00%)</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass-card rounded-2xl p-4 relative overflow-hidden group hover:border-white/20 transition-all">
+        <div class="text-[11px] text-neutral-400 uppercase font-semibold tracking-wider">Total Signals</div>
+        <div id="metric-total" class="text-3xl font-black font-mono mt-1 text-slate-100">0</div>
+        <div class="absolute right-3 bottom-3 text-neutral-800 text-3xl font-bold opacity-30 select-none">#</div>
+      </div>
+      
+      <div class="glass-card rounded-2xl p-4 relative overflow-hidden group hover:border-yellow-400/30 transition-all">
+        <div class="text-[11px] text-neutral-400 uppercase font-semibold tracking-wider">Pending Limit</div>
+        <div id="metric-pending" class="text-3xl font-black font-mono text-yellow-400 mt-1">0</div>
+        <div class="absolute right-3 bottom-3 text-yellow-500/20 text-3xl select-none">⏳</div>
+      </div>
+      
+      <div class="glass-card rounded-2xl p-4 relative overflow-hidden group hover:border-emerald-500/30 transition-all">
+        <div class="text-[11px] text-neutral-400 uppercase font-semibold tracking-wider">Executed</div>
+        <div id="metric-executed" class="text-3xl font-black font-mono text-emerald-400 mt-1">0</div>
+        <div class="absolute right-3 bottom-3 text-emerald-500/20 text-3xl select-none">⚡</div>
+      </div>
+      
+      <div class="glass-card rounded-2xl p-4 relative overflow-hidden group hover:border-sky-400/30 transition-all">
+        <div class="text-[11px] text-neutral-400 uppercase font-semibold tracking-wider">Active Channels</div>
+        <div id="metric-channels" class="text-3xl font-black font-mono text-sky-400 mt-1">0</div>
+        <div class="absolute right-3 bottom-3 text-sky-500/20 text-3xl select-none">📡</div>
+      </div>
+    </div>
+
+    <!-- Trade Stream Table -->
+    <div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+      <div class="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Live Trade Stream</h2>
+        </div>
+        <span class="text-[11px] font-mono text-neutral-400">Stream Updates Active</span>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-black/60 text-neutral-400 uppercase font-semibold border-b border-white/5 text-[10px] tracking-wider">
+            <tr>
+              <th class="p-3.5 pl-5">Time</th>
+              <th class="p-3.5">Source Channel</th>
+              <th class="p-3.5">Symbol</th>
+              <th class="p-3.5">Side</th>
+              <th class="p-3.5">Limit Entry</th>
+              <th class="p-3.5">TP1</th>
+              <th class="p-3.5">SL</th>
+              <th class="p-3.5 pr-5">Status</th>
+            </tr>
+          </thead>
+          <tbody id="trade-table-body" class="divide-y divide-white/5 text-slate-200">
+            <tr>
+              <td colspan="8" class="p-8 text-center text-neutral-400 font-mono">
+                <div class="inline-block animate-spin mr-2">⚡</div> Connecting to Supabase...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
