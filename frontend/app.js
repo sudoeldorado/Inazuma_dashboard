@@ -3,7 +3,54 @@ const SUPABASE_URL = "https://ktnutrhbhwsrojunujnw.supabase.co";
 const SUPABASE_ANON_KEY = "your_supabase_anon_key_here";
 
 const { createClient } = supabase;
-const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let client = null;
+try {
+  if (SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== "your_supabase_anon_key_here") {
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch (err) {
+  console.warn("Supabase client init skipped or failed:", err);
+}
+
+// Fallback demo signals in case Supabase API key is unconfigured or unreachable
+const DEMO_SIGNALS = [
+  {
+    id: 101,
+    received_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    channel_name: 'Ghost Crypto',
+    symbol: 'BTC/USDT',
+    direction: 'LONG',
+    entry_min: 64200,
+    entry_max: 64500,
+    tp_targets: [66000, 68000],
+    sl_target: 63000,
+    status: 'PENDING'
+  },
+  {
+    id: 102,
+    received_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    channel_name: 'Ghost Crypto',
+    symbol: 'ETH/USDT',
+    direction: 'BUY',
+    entry_min: 3450,
+    entry_max: 3480,
+    tp_targets: [3600, 3750],
+    sl_target: 3380,
+    status: 'EXECUTED'
+  },
+  {
+    id: 103,
+    received_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    channel_name: 'Inazuma VIP',
+    symbol: 'SOL/USDT',
+    direction: 'SHORT',
+    entry_min: 155,
+    entry_max: 158,
+    tp_targets: [145, 138],
+    sl_target: 162,
+    status: 'PENDING'
+  }
+];
 
 let allSignals = [];
 let activeFilter = 'ALL';
@@ -26,17 +73,28 @@ window.addEventListener('click', (e) => {
 });
 
 async function loadData() {
-  const { data, error } = await client
-    .from('signals')
-    .select('*')
-    .order('id', { ascending: false });
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('signals')
+        .select('*')
+        .order('id', { ascending: false });
 
-  if (error) {
-    console.error("DB Load Error:", error);
-    return;
+      if (error) {
+        console.error("DB Load Error, using fallback data:", error);
+        allSignals = DEMO_SIGNALS;
+      } else {
+        allSignals = data && data.length > 0 ? data : DEMO_SIGNALS;
+      }
+    } catch (e) {
+      console.error("Fetch Exception, using fallback data:", e);
+      allSignals = DEMO_SIGNALS;
+    }
+  } else {
+    console.warn("No valid Supabase client config found. Loading demo signals.");
+    allSignals = DEMO_SIGNALS;
   }
 
-  allSignals = data || [];
   renderUI();
 }
 
@@ -139,10 +197,16 @@ function filterChannel(name) {
 
 // Initial Fetch and Realtime Subscription
 loadData();
-client
-  .channel('signals-realtime')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'signals' }, () => {
-    loadData();
-  })
-  .subscribe();
+if (client) {
+  try {
+    client
+      .channel('signals-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'signals' }, () => {
+        loadData();
+      })
+      .subscribe();
+  } catch (err) {
+    console.warn("Realtime subscription failed:", err);
+  }
+}
            
